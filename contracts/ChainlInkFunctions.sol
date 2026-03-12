@@ -7,40 +7,51 @@ import {FunctionsRequest} from "@chainlink/contracts/src/v0.8/functions/v1_0_0/l
 contract BeerConsumer is FunctionsClient {
     using FunctionsRequest for FunctionsRequest.Request;
 
-    string public lastBeerName; // Сюда сохраним результат
+    // JavaScript код для Chainlink Nodes
+    // Мы берем имя первого пива (index 0) из массива элей
+    string public source = 
+        "const apiResponse = await Functions.makeHttpRequest({"
+        "  url: 'https://api.sampleapis.com/beers/ale'"
+        "});"
+        "if (apiResponse.error) throw Error('API Error');"
+        "const beerName = apiResponse.data[0].name;"
+    "return Functions.encodeString(beerName);";
+
+    string public lastBeerName;
     bytes32 public lastRequestId;
+    bytes public lastResponse;
+    bytes public lastError;
 
-    // Адрес роутера зависит от сети (напр. Sepolia: 0xb83E47C2... )
-    constructor(address router) FunctionsClient(router) {}
+    // Данные для Sepolia (актуально на 2024-2026)
+    address router = 0xb83E47C2bC239B3bf370bc41e1459A34b41238D0;
+    bytes32 donID = 0x66756e2d657468657265756d2d7365706f6c69612d3100000000000000000000;
+    // uint16 subscriptionId = 6367;
 
-    function requestBeerData(
-        string calldata source, // Тот самый JS код выше
-        uint64 subscriptionId, // Твой ID подписки в Chainlink
-        uint32 gasLimit,
-        bytes32 donID
-    ) external returns (bytes32) {
+    constructor() FunctionsClient(router) {}
+
+    /**
+     * @notice Отправляет запрос к API
+     * @param subscriptionId ID твоей подписки с сайта functions.chain.link
+     */
+    function requestBeerData(uint64 subscriptionId) external returns (bytes32) {
         FunctionsRequest.Request memory req;
-        req.initializeRequestForInlineJavaScript(source);
-
-        lastRequestId = _sendRequest(
-            req.encodeCBOR(),
-            subscriptionId,
-            gasLimit,
-            donID
-        );
+        req.initializeRequestForInlineJavaScript(source); 
+        
+        // gasLimit: 300,000 (хватит для записи строки)
+        lastRequestId = _sendRequest(req.encodeCBOR(), subscriptionId, 300000, donID);
         return lastRequestId;
     }
 
-    // Callback, который вызовет Chainlink, когда получит данные из API
     function fulfillRequest(
-        bytes32 /* requestId */, // Имя удалено или закомментировано
+        bytes32 /* requestId */,
         bytes memory response,
         bytes memory err
     ) internal override {
-        if (err.length > 0) {
-            // Логика обработки ошибки (по желанию)
-            return;
+        lastResponse = response;
+        lastError = err;
+        
+        if (response.length > 0) {
+            lastBeerName = string(response);
         }
-        lastBeerName = string(response);
     }
 }
