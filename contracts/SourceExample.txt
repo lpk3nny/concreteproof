@@ -1,0 +1,1 @@
+"const url = args[0]; const res = await Functions.makeHttpRequest({ url }); if (res.error) throw Error('API Error'); const dataString = JSON.stringify(res.data); const msgUint8 = new TextEncoder().encode(dataString); const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8); return new Uint8Array(hashBuffer);"
